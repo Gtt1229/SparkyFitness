@@ -1,4 +1,5 @@
 import { addLog } from '../LogService';
+import { getLocalDateFromISO } from '../../utils/dateUtils';
 import {
   MetricConfig,
   TransformOutput,
@@ -15,6 +16,24 @@ const EXERCISE_MAP: Record<number, string> = {
   80: 'Walking (Fitness)', 87: 'Yoga', 55: 'Rowing Machine', 27: 'Elliptical',
   69: 'Stair Climbing', 23: 'Dancing'
 } as const;
+
+/**
+ * Helper to safely extract a local date from various possible date fields in a record.
+ * Returns null if no valid date can be extracted.
+ */
+const extractLocalDate = (rec: Record<string, unknown>, ...fields: string[]): string | null => {
+  for (const field of fields) {
+    const value = rec[field];
+    if (typeof value === 'string' && value.length > 0) {
+      try {
+        return getLocalDateFromISO(value);
+      } catch {
+        // Continue to next field
+      }
+    }
+  }
+  return null;
+};
 
 export const transformHealthRecords = (records: unknown[], metricConfig: MetricConfig): TransformOutput[] => {
   if (!Array.isArray(records)) {
@@ -54,7 +73,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const weight = rec.weight as Record<string, number> | undefined;
             if (rec.time && weight?.inKilograms) {
               value = weight.inKilograms;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
           }
@@ -73,21 +92,20 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               if (rec.startTime && energy?.inCalories != null) {
                 // Raw record - shouldn't happen if aggregation is working, but handle it
                 value = energy.inCalories;
-                recordDate = (rec.startTime as string).split('T')[0];
+                recordDate = getLocalDateFromISO(rec.startTime as string);
                 if (index === 0) {
                   addLog(`[Transform] ActiveCalories (raw): ${value} kcal on ${recordDate}`, 'debug');
                 }
               } else if (energy?.inKilocalories != null) {
                 value = energy.inKilocalories;
-                const dateField = (rec.startTime || rec.time || rec.date) as string | undefined;
-                recordDate = dateField ? dateField.split('T')[0] : null;
+                recordDate = extractLocalDate(rec, 'startTime', 'time', 'date');
                 if (index === 0 && recordDate) {
                   addLog(`[Transform] ActiveCalories (alt format): ${value} kcal on ${recordDate}`, 'debug');
                 }
               }
             }
 
-            if (value == null || isNaN(value) || !recordDate) {
+            if (value == null || isNaN(value) || ! recordDate) {
               if (index === 0) {
                 addLog(`[Transform] ActiveCalories FAILED: value=${value}, date=${recordDate}`, 'warn', 'WARNING');
               }
@@ -109,15 +127,14 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               if (rec.startTime && energy?.inCalories != null) {
                 // Raw record - convert from calories to kilocalories
                 value = energy.inCalories / 1000;
-                recordDate = (rec.startTime as string).split('T')[0];
+                recordDate = getLocalDateFromISO(rec.startTime as string);
                 if (index === 0) {
                   addLog(`[Transform] TotalCalories (raw): ${value} kcal on ${recordDate}`, 'debug');
                 }
               } else if (energy?.inKilocalories != null) {
                 // Already in kilocalories
                 value = energy.inKilocalories;
-                const dateField = (rec.startTime || rec.time || rec.date) as string | undefined;
-                recordDate = dateField ? dateField.split('T')[0] : null;
+                recordDate = extractLocalDate(rec, 'startTime', 'time', 'date');
                 if (index === 0 && recordDate) {
                   addLog(`[Transform] TotalCalories (already in kcal): ${value} kcal on ${recordDate}`, 'debug');
                 }
@@ -134,7 +151,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
 
           case 'BloodPressure': {
             if (rec.time) {
-              const date = (rec.time as string).split('T')[0];
+              const date = getLocalDateFromISO(rec.time as string);
               const systolic = rec.systolic as Record<string, number> | undefined;
               const diastolic = rec.diastolic as Record<string, number> | undefined;
               if (systolic?.inMillimetersOfMercury) {
@@ -161,7 +178,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const energy = rec.energy as Record<string, number> | undefined;
             if (rec.startTime && energy?.inCalories) {
               value = energy.inCalories / 1000;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
           }
@@ -173,7 +190,8 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               if (!isNaN(start) && !isNaN(end)) {
                 // Calculate duration in seconds
                 const durationInSeconds = (end - start) / 1000;
-                recordDate = (rec.startTime as string).split('T')[0];
+                // Use endTime for sleep to assign to the day you woke up
+                recordDate = getLocalDateFromISO(rec.endTime as string);
 
                 // Push a rich object directly, bypassing the simple value/unit structure
                 // The server's processHealthData handles this specific structure for SleepSession
@@ -204,7 +222,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const temperature = rec.temperature as Record<string, number> | undefined;
             if (rec.time && temperature?.inCelsius) {
               value = temperature.inCelsius;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
           }
@@ -233,16 +251,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               bmrValue = rec.value as number;
             }
 
-            const bmrDate = (rec.time || rec.startTime || rec.timestamp || rec.date) as string | undefined;
-            let bmrDateStr: string | null = null;
-
-            if (bmrDate) {
-              try {
-                bmrDateStr = typeof bmrDate === 'string' ? bmrDate.split('T')[0] : null;
-              } catch (e) {
-                addLog(`[Transform] Error parsing BMR date: ${(e as Error).message}`, 'warn', 'WARNING');
-              }
-            }
+            const bmrDateStr = extractLocalDate(rec, 'time', 'startTime', 'timestamp', 'date');
 
             const isValidBMR = bmrValue != null && !isNaN(bmrValue) && bmrValue > 0 && bmrValue < 10000;
             const isValidBMRDate = bmrDateStr != null && bmrDateStr.length > 0;
@@ -290,16 +299,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               glucoseValue = rec.value as number;
             }
 
-            const glucoseDate = (rec.time || rec.startTime || rec.timestamp || rec.date) as string | undefined;
-            let glucoseDateStr: string | null = null;
-
-            if (glucoseDate) {
-              try {
-                glucoseDateStr = typeof glucoseDate === 'string' ? glucoseDate.split('T')[0] : null;
-              } catch (e) {
-                addLog(`[Transform] Error parsing BloodGlucose date: ${(e as Error).message}`, 'warn', 'WARNING');
-              }
-            }
+            const glucoseDateStr = extractLocalDate(rec, 'time', 'startTime', 'timestamp', 'date');
 
             const isValidGlucose = glucoseValue != null && !isNaN(glucoseValue) && glucoseValue > 0;
             const isValidGlucoseDate = glucoseDateStr != null && glucoseDateStr.length > 0;
@@ -354,17 +354,8 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               bodyFatValue = bodyFatPercentage.inPercent;
             }
 
-            // Extract date using multiple strategies
-            let bodyFatDate: string | null = null;
-            const dateSource = (rec.time || rec.startTime || rec.timestamp || rec.date) as string | undefined;
-
-            if (dateSource) {
-              try {
-                bodyFatDate = typeof dateSource === 'string' ? dateSource.split('T')[0] : null;
-              } catch (e) {
-                addLog(`[Transform] Error parsing BodyFat date: ${(e as Error).message}`, 'warn', 'WARNING');
-              }
-            }
+            // Extract date using helper
+            const bodyFatDate = extractLocalDate(rec, 'time', 'startTime', 'timestamp', 'date');
 
             // Final validation and assignment
             const isValidValue = bodyFatValue != null && !isNaN(bodyFatValue) && bodyFatValue >= 0 && bodyFatValue <= 100;
@@ -395,7 +386,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const temperature = rec.temperature as Record<string, number> | undefined;
             if (rec.time && temperature?.inCelsius) {
               value = temperature.inCelsius;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
           }
@@ -404,8 +395,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const mass = rec.mass as Record<string, number> | undefined;
             if (mass?.inKilograms) {
               value = mass.inKilograms;
-              const dateField = (rec.time || rec.startTime) as string | undefined;
-              recordDate = dateField?.split('T')[0] ?? null;
+              recordDate = extractLocalDate(rec, 'time', 'startTime');
             }
             break;
           }
@@ -414,7 +404,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const distance = rec.distance as Record<string, number> | undefined;
             if (rec.startTime && distance?.inMeters) {
               value = distance.inMeters;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
           }
@@ -423,7 +413,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const elevation = rec.elevation as Record<string, number> | undefined;
             if (rec.startTime && elevation?.inMeters) {
               value = elevation.inMeters;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
           }
@@ -434,7 +424,8 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               const end = new Date(rec.endTime as string).getTime();
               if (!isNaN(start) && !isNaN(end)) {
                 const durationInSeconds = (end - start) / 1000;
-                recordDate = (rec.startTime as string).split('T')[0];
+                // Use startTime for exercise to assign to the day the workout began
+                recordDate = getLocalDateFromISO(rec.startTime as string);
                 const exerciseType = rec.exerciseType as number | undefined;
                 const activityTypeName = exerciseType ? (EXERCISE_MAP[exerciseType] || `Exercise Type ${exerciseType}`) : 'Exercise Session';
                 const title = (rec.title as string) || activityTypeName;
@@ -478,10 +469,10 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             break;
           }
 
-          case 'FloorsClimbed':
+          case 'FloorsClimbed': 
             if (rec.startTime && typeof rec.floors === 'number') {
               value = rec.floors as number;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
 
@@ -489,7 +480,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const height = rec.height as Record<string, number> | undefined;
             if (rec.time && height?.inMeters) {
               value = height.inMeters;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
           }
@@ -498,7 +489,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const volume = rec.volume as Record<string, number> | undefined;
             if (rec.startTime && volume?.inLiters) {
               value = volume.inLiters;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
           }
@@ -507,8 +498,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const mass = rec.mass as Record<string, number> | undefined;
             if (mass?.inKilograms) {
               value = mass.inKilograms;
-              const dateField = (rec.time || rec.startTime) as string | undefined;
-              recordDate = dateField?.split('T')[0] ?? null;
+              recordDate = extractLocalDate(rec, 'time', 'startTime');
             }
             break;
           }
@@ -534,16 +524,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               o2Value = rec.spo2 as number;
             }
 
-            const o2Date = (rec.time || rec.startTime || rec.timestamp || rec.date) as string | undefined;
-            let o2DateStr: string | null = null;
-
-            if (o2Date) {
-              try {
-                o2DateStr = typeof o2Date === 'string' ? o2Date.split('T')[0] : null;
-              } catch (e) {
-                addLog(`[Transform] Error parsing OxygenSaturation date: ${(e as Error).message}`, 'warn', 'WARNING');
-              }
-            }
+            const o2DateStr = extractLocalDate(rec, 'time', 'startTime', 'timestamp', 'date');
 
             const isValidO2 = o2Value != null && !isNaN(o2Value) && o2Value > 0 && o2Value <= 100;
             const isValidO2Date = o2DateStr != null && o2DateStr.length > 0;
@@ -569,23 +550,22 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const power = rec.power as Record<string, number> | undefined;
             if (rec.startTime && power?.inWatts) {
               value = power.inWatts;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
           }
 
-          case 'RespiratoryRate':
+          case 'RespiratoryRate': 
             if (rec.rate) {
               value = rec.rate as number;
-              const dateField = (rec.time || rec.startTime) as string | undefined;
-              recordDate = dateField?.split('T')[0] ?? null;
+              recordDate = extractLocalDate(rec, 'time', 'startTime');
             }
             break;
 
           case 'RestingHeartRate':
             if (rec.time && typeof rec.beatsPerMinute === 'number') {
               value = rec.beatsPerMinute as number;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
 
@@ -593,7 +573,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const speed = rec.speed as Record<string, number> | undefined;
             if (rec.startTime && speed?.inMetersPerSecond) {
               value = speed.inMetersPerSecond;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
           }
@@ -616,16 +596,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
               vo2Value = rec.vo2MaxMillilitersPerMinuteKilogram as number;
             }
 
-            const vo2Date = (rec.time || rec.startTime || rec.timestamp || rec.date) as string | undefined;
-            let vo2DateStr: string | null = null;
-
-            if (vo2Date) {
-              try {
-                vo2DateStr = typeof vo2Date === 'string' ? vo2Date.split('T')[0] : null;
-              } catch (e) {
-                addLog(`[Transform] Error parsing Vo2Max date: ${(e as Error).message}`, 'warn', 'WARNING');
-              }
-            }
+            const vo2DateStr = extractLocalDate(rec, 'time', 'startTime', 'timestamp', 'date');
 
             const isValidVo2 = vo2Value != null && !isNaN(vo2Value) && vo2Value > 0 && vo2Value < 100;
             const isValidVo2Date = vo2DateStr != null && vo2DateStr.length > 0;
@@ -650,7 +621,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
           case 'WheelchairPushes':
             if (rec.startTime && typeof rec.count === 'number') {
               value = rec.count as number;
-              recordDate = (rec.startTime as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.startTime as string);
             }
             break;
 
@@ -664,11 +635,12 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
           case 'CyclingPedalingCadence': {
             const samples = rec.samples as { revolutionsPerMinute: number }[] | undefined;
             if (rec.startTime && samples) {
+              const cyclingDate = getLocalDateFromISO(rec.startTime as string);
               samples.forEach(sample => {
                 transformedData.push({
                   value: sample.revolutionsPerMinute,
                   type: outputType,
-                  date: (rec.startTime as string).split('T')[0],
+                  date: cyclingDate,
                   unit: unit,
                 });
               });
@@ -688,7 +660,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
           case 'IntermenstrualBleeding':
             if (rec.time) {
               value = 1;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
 
@@ -700,7 +672,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
                 transformedData.push({
                   value: 1,
                   type: outputType,
-                  date: new Date(d).toISOString().split('T')[0],
+                  date: getLocalDateFromISO(d.toISOString()),
                   unit: unit,
                 });
               }
@@ -710,11 +682,12 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
           case 'StepsCadence': {
             const samples = rec.samples as { rate: number }[] | undefined;
             if (rec.startTime && samples) {
+              const cadenceDate = getLocalDateFromISO(rec.startTime as string);
               samples.forEach(sample => {
                 transformedData.push({
                   value: sample.rate,
                   type: outputType,
-                  date: (rec.startTime as string).split('T')[0],
+                  date: cadenceDate,
                   unit: unit,
                 });
               });
@@ -726,7 +699,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const percentage = rec.percentage as Record<string, number> | undefined;
             if (rec.time && percentage) {
               value = percentage.inPercent;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
           }
@@ -735,7 +708,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
             const percentage = rec.percentage as Record<string, number> | undefined;
             if (rec.time && percentage) {
               value = percentage.inPercent;
-              recordDate = (rec.time as string).split('T')[0];
+              recordDate = getLocalDateFromISO(rec.time as string);
             }
             break;
           }

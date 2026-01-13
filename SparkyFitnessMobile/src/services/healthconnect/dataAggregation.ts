@@ -1,4 +1,5 @@
 import { addLog } from '../LogService';
+import { getLocalDateFromISO } from '../../utils/dateUtils';
 import {
   HCHeartRateRecord,
   HCStepsRecord,
@@ -10,7 +11,7 @@ import {
 
 export const aggregateHeartRateByDate = (records: HCHeartRateRecord[]): AggregatedHealthRecord[] => {
   if (!Array.isArray(records)) {
-    addLog(`[HealthConnectService] aggregateHeartRateByDate received non-array records: ${JSON.stringify(records)}`, 'warn', 'WARNING');
+    addLog(`[HealthConnectService] aggregateHeartRateByDate received non-array records:  ${JSON.stringify(records)}`, 'warn', 'WARNING');
     console.warn('aggregateHeartRateByDate received non-array records:', records);
     return [];
   }
@@ -25,7 +26,7 @@ export const aggregateHeartRateByDate = (records: HCHeartRateRecord[]): Aggregat
 
   const aggregatedData = validRecords.reduce<HeartRateAccumulator>((acc, record) => {
     try {
-      const date = record.startTime.split('T')[0];
+      const date = getLocalDateFromISO(record.startTime);
       const heartRate = record.samples.reduce((sum, sample) =>
         sum + (sample.beatsPerMinute || 0), 0) / record.samples.length;
 
@@ -67,8 +68,7 @@ export const aggregateStepsByDate = (records: HCStepsRecord[]): AggregatedHealth
 
   const aggregatedData = validRecords.reduce<SumAccumulator>((acc, record) => {
     try {
-      // Use startTime for steps to assign them to the day they were recorded
-      const date = record.startTime.split('T')[0];
+      const date = getLocalDateFromISO(record.startTime);
       const steps = record.count;
 
       if (!acc[date]) {
@@ -108,10 +108,10 @@ export const aggregateTotalCaloriesByDate = (records: HCEnergyRecord[]): Aggrega
 
   const aggregatedData = validRecords.reduce<SumAccumulator>((acc, record) => {
     try {
-      // Use endTime for total calories to avoid previous day assignment (consistent with Steps)
+      // Use endTime for total calories to align with when the activity completed
       // If endTime doesn't exist, fall back to startTime
       const timeToUse = record.endTime || record.startTime;
-      const date = timeToUse.split('T')[0];
+      const date = getLocalDateFromISO(timeToUse);
 
       let valInKcal = 0;
 
@@ -119,7 +119,7 @@ export const aggregateTotalCaloriesByDate = (records: HCEnergyRecord[]): Aggrega
         valInKcal = record.energy.inKilocalories;
       } else if (record.energy.inCalories !== undefined) {
         const rawVal = record.energy.inCalories;
-        // Heuristic: if value > 10,000, it's likely raw calories.
+        // Heuristic: if value > 10,000, it's likely raw calories. 
         // 10,000 kcal is an insane amount for one record/day usually.
         // If it's raw calories, divide by 1000.
         if (rawVal > 10000) {
@@ -151,7 +151,7 @@ export const aggregateTotalCaloriesByDate = (records: HCEnergyRecord[]): Aggrega
 
 export const aggregateActiveCaloriesByDate = (records: HCEnergyRecord[]): AggregatedHealthRecord[] => {
   if (!Array.isArray(records)) {
-    addLog(`[HealthConnectService] aggregateActiveCaloriesByDate received non-array records: ${JSON.stringify(records)}`, 'warn', 'WARNING');
+    addLog(`[HealthConnectService] aggregateActiveCaloriesByDate received non-array records:  ${JSON.stringify(records)}`, 'warn', 'WARNING');
     console.warn('aggregateActiveCaloriesByDate received non-array records:', records);
     return [];
   }
@@ -167,7 +167,7 @@ export const aggregateActiveCaloriesByDate = (records: HCEnergyRecord[]): Aggreg
 
   const aggregatedData = validRecords.reduce<SumAccumulator>((acc, record) => {
     try {
-      const date = record.startTime.split('T')[0];
+      const date = getLocalDateFromISO(record.startTime);
 
       // Health Connect can return values in 'calories' (large number) or 'kilocalories' (small number).
       // We need to normalize to kilocalories.
@@ -181,7 +181,7 @@ export const aggregateActiveCaloriesByDate = (records: HCEnergyRecord[]): Aggreg
       } else if (record.energy && record.energy.inCalories !== undefined) {
         const rawVal = record.energy.inCalories;
         // Heuristic: if value > 10,000, it's likely raw calories (unless they ran an ultramarathon).
-        // 10,000 kcal is an insane amount for one record/day usually.
+        // 10,000 kcal is an insane amount for one record/day usually. 
         // If it's raw calories, divide by 1000.
         if (rawVal > 10000) {
           valInKcal = rawVal / 1000;
