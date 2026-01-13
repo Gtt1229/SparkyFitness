@@ -67,10 +67,8 @@ export const aggregateStepsByDate = (records: HCStepsRecord[]): AggregatedHealth
 
   const aggregatedData = validRecords.reduce<SumAccumulator>((acc, record) => {
     try {
-      // Use endTime for steps to avoid previous day assignment
-      // If endTime doesn't exist, fall back to startTime
-      const timeToUse = record.endTime || record.startTime;
-      const date = timeToUse.split('T')[0];
+      // Use startTime for steps to assign them to the day they were recorded
+      const date = record.startTime.split('T')[0];
       const steps = record.count;
 
       if (!acc[date]) {

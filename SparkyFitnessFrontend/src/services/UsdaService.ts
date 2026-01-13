@@ -117,12 +117,18 @@ export const getUsdaFoodDetails = async (fdcId: number, providerId: string): Pro
       });
     }
 
+    // For Foundation foods, returns scaled nutrients and serving info
+    // For Branded foods, returns original data
+    // Use the serving size from response if available
+    const servingSize = response.servingSize || response.gramWeight || 100;
+    const servingSizeUnit = response.servingSizeUnit || 'g';
+
     return {
       fdcId: response.fdcId,
       description: response.description,
       brandOwner: response.brandOwner,
-      servingSize: response.servingSize,
-      servingSizeUnit: response.servingSizeUnit,
+      servingSize: servingSize,
+      servingSizeUnit: servingSizeUnit,
       calories: nutrientMap.calories || 0,
       protein: nutrientMap.protein || 0,
       fat: nutrientMap.fat || 0,

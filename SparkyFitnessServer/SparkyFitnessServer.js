@@ -50,6 +50,7 @@ const globalSettingsRoutes = require('./routes/globalSettingsRoutes');
 const versionRoutes = require('./routes/versionRoutes');
 const onboardingRoutes = require('./routes/onboardingRoutes'); // Import onboarding routes
 const customNutrientRoutes = require('./routes/customNutrientRoutes'); // Import custom nutrient routes
+const mealTypeRoutes = require('./routes/mealTypeRoutes'); // Import meal type routes
 const { applyMigrations } = require('./utils/dbMigrations');
 const { applyRlsPolicies } = require('./utils/applyRlsPolicies');
 const { grantPermissions } = require('./db/grantPermissions');
