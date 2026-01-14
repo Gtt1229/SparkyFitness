@@ -6,6 +6,7 @@ import {
   TransformedExerciseSession,
   AggregatedSleepSession,
 } from '../../types/healthRecords';
+import { getLocalDateString } from '../../utils/dateUtils';
 
 // HKWorkoutActivityType Mapping
 // Source: https://developer.apple.com/documentation/healthkit/hkworkoutactivitytype
@@ -42,7 +43,7 @@ export const transformHealthRecords = (records: unknown[], metricConfig: MetricC
   const getDateString = (date: unknown): string | null => {
     if (!date) return null;
     try {
-      return new Date(date as string | number | Date).toISOString().split('T')[0];
+      return getLocalDateString(new Date(date as string | number | Date).toISOString());
     } catch (e) {
       addLog(`[HealthKitService] Could not convert date: ${date}. ${e}`, 'warn', 'WARNING');
       return null;

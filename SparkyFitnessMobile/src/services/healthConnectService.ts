@@ -12,6 +12,7 @@ import {
   HealthMetricStates,
 } from '../types/healthRecords';
 import { SyncDuration } from './healthconnect/preferences';
+import { getLocalDateString } from '../utils/dateUtils';
 
 export const initHealthConnect = HealthConnect.initHealthConnect;
 export const requestHealthPermissions = HealthConnect.requestHealthPermissions;
@@ -67,7 +68,7 @@ export const getAggregatedTotalCaloriesByDate = async (
   }[];
   const byDate: Record<string, number> = {};
   records.forEach(record => {
-    const date = new Date(record.startTime || record.time || '').toISOString().split('T')[0];
+    const date = getLocalDateString(record.startTime || record.time || '');
     byDate[date] = (byDate[date] || 0) + (record.energy?.inKilocalories || 0);
   });
   return Object.entries(byDate).map(([date, value]) => ({ date, value: Math.round(value), type: 'total_calories' }));
@@ -84,7 +85,7 @@ export const getAggregatedDistanceByDate = async (
   }[];
   const byDate: Record<string, number> = {};
   records.forEach(record => {
-    const date = new Date(record.startTime || record.time || '').toISOString().split('T')[0];
+    const date = getLocalDateString(record.startTime || record.time || '');
     byDate[date] = (byDate[date] || 0) + (record.distance?.inMeters || 0);
   });
   return Object.entries(byDate).map(([date, value]) => ({ date, value: Math.round(value), type: 'distance' }));
@@ -101,7 +102,7 @@ export const getAggregatedFloorsClimbedByDate = async (
   }[];
   const byDate: Record<string, number> = {};
   records.forEach(record => {
-    const date = new Date(record.startTime || record.time || '').toISOString().split('T')[0];
+    const date = getLocalDateString(record.startTime || record.time || '');
     byDate[date] = (byDate[date] || 0) + (record.floors || 0);
   });
   return Object.entries(byDate).map(([date, value]) => ({ date, value: Math.round(value), type: 'floors_climbed' }));

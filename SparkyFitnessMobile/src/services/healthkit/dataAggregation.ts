@@ -9,12 +9,13 @@ import {
   AggregatedSleepSession,
 } from '../../types/healthRecords';
 import { SleepStageEvent } from '../../types/mobileHealthData';
+import { getLocalDateString } from '../../utils/dateUtils';
 
 export const aggregateHeartRateByDate = (records: HKHeartRateRecord[]): AggregatedHealthRecord[] => {
   if (!Array.isArray(records)) return [];
   const aggregatedData = records.reduce<HeartRateAccumulator>((acc, record) => {
     try {
-      const date = new Date(record.startTime).toISOString().split('T')[0];
+      const date = getLocalDateString(record.startTime);
       const heartRate = record.samples[0].beatsPerMinute;
       if (heartRate == null || Number.isNaN(heartRate)) return acc;
       if (!acc[date]) acc[date] = { total: 0, count: 0 };
@@ -55,7 +56,7 @@ const finalizeSession = (session: SleepSessionAccumulator): AggregatedSleepSessi
     type: 'SleepSession',
     source: 'HealthKit',
     timestamp: session.bedtime.toISOString(),
-    entry_date: session.bedtime.toISOString().split('T')[0],
+    entry_date: getLocalDateString(session.bedtime.toISOString()),
     bedtime: session.bedtime.toISOString(),
     wake_time: session.wake_time.toISOString(),
     duration_in_seconds: totalDuration,
