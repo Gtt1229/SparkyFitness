@@ -68,7 +68,9 @@ export const aggregateStepsByDate = (records: HCStepsRecord[]): AggregatedHealth
 
   const aggregatedData = validRecords.reduce<SumAccumulator>((acc, record) => {
     try {
+      addLog(`[aggregateStepsByDate] Raw record.startTime: "${record.startTime}", count: ${record.count}`, 'info');
       const date = getLocalDateFromISO(record.startTime);
+      addLog(`[aggregateStepsByDate] Parsed date: "${date}"`, 'info');
       const steps = record.count;
 
       if (!acc[date]) {

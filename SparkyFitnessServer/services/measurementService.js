@@ -11,6 +11,8 @@ const waterContainerRepository = require('../models/waterContainerRepository'); 
 const activityDetailsRepository = require('../models/activityDetailsRepository'); // Import activityDetailsRepository
 
 async function processHealthData(healthDataArray, userId, actingUserId) {
+  log('info', `[processHealthData] Received ${healthDataArray.length} entries for user ${userId}`);
+  log('info', `[processHealthData] Raw data sample: ${JSON.stringify(healthDataArray.slice(0, 2))}`);
   const processedResults = [];
   const errors = [];
 
@@ -107,6 +109,7 @@ async function processHealthData(healthDataArray, userId, actingUserId) {
     try {
       // Use 'date', 'entry_date', or 'timestamp' to determine the date of the entry
       const dateToParse = date || dataEntry.entry_date || timestamp;
+      log('info', `[processHealthData] Entry type=${type}, date=${date}, entry_date=${dataEntry.entry_date}, timestamp=${timestamp}, dateToParse=${dateToParse}`);
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
       
       // If dateToParse is already in YYYY-MM-DD format, use it directly
@@ -134,6 +137,8 @@ async function processHealthData(healthDataArray, userId, actingUserId) {
           log('debug', `[processHealthData] Converted to local date: ${parsedDate}`);
         }
       }
+
+      log('info', `[processHealthData] FINAL parsedDate=${parsedDate} for type=${type}`);
 
       // If timestamp is not provided, default to the beginning of the day from the 'date' field.
       if (timestamp) {
@@ -370,12 +375,14 @@ async function processHealthData(healthDataArray, userId, actingUserId) {
 }
 
 async function processMobileHealthData(mobileHealthDataArray, userId, actingUserId) {
+  log('info', `[processMobileHealthData] Received ${mobileHealthDataArray.length} entries for user ${userId}`);
+  log('info', `[processMobileHealthData] Raw data sample: ${JSON.stringify(mobileHealthDataArray.slice(0, 2))}`);
   const processedResults = [];
   const errors = [];
 
   for (const dataEntry of mobileHealthDataArray) {
     const { type, source, timestamp, date, entry_date, value, bedtime, wake_time, duration_in_seconds, time_asleep_in_seconds, sleep_score, stage_events, activityType, caloriesBurned, distance, duration, raw_data } = dataEntry;
-    log('debug', `[processMobileHealthData] Processing dataEntry with type: ${type}, date: ${date}, timestamp: ${timestamp}`);
+    log('info', `[processMobileHealthData] Processing entry: type=${type}, date=${date}, entry_date=${entry_date}, timestamp=${timestamp}, value=${value}`);
 
     // Require either timestamp or date
     if (!type || !source || (!timestamp && !date && !entry_date)) {
@@ -434,6 +441,7 @@ async function processMobileHealthData(mobileHealthDataArray, userId, actingUser
       } else {
         throw new Error(`No valid date or timestamp provided.`);
       }
+      log('info', `[processMobileHealthData] FINAL parsedDate=${parsedDate} for type=${type}`);
     } catch (e) {
       log('error', "Timestamp parsing error:", e);
       errors.push({ error: `Invalid timestamp format for entry: ${JSON.stringify(dataEntry)}. Error: ${e.message}`, entry: dataEntry });
