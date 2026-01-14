@@ -28,9 +28,31 @@ async function processHealthData(healthDataArray, userId, actingUserId) {
       // Replicate date parsing logic from main loop to ensure consistency
       const dateToParse = entry.date || entry.entry_date || entry.timestamp;
       if (dateToParse) {
-        const dateObj = new Date(dateToParse);
-        if (!isNaN(dateObj.getTime())) {
-          const parsedDate = dateObj.toISOString().split('T')[0];
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        let parsedDate;
+        
+        if (dateRegex.test(dateToParse)) {
+          // Already in YYYY-MM-DD format
+          parsedDate = dateToParse;
+        } else {
+          const hasTimezone = /Z|[+-]\d{2}:\d{2}|[+-]\d{4}$/.test(dateToParse);
+          
+          if (!hasTimezone && dateToParse.includes('T')) {
+            // No timezone - extract date directly
+            parsedDate = dateToParse.split('T')[0];
+          } else {
+            // Has timezone - use local date components
+            const dateObj = new Date(dateToParse);
+            if (!isNaN(dateObj.getTime())) {
+              const year = dateObj.getFullYear();
+              const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+              const day = String(dateObj.getDate()).padStart(2, '0');
+              parsedDate = `${year}-${month}-${day}`;
+            }
+          }
+        }
+        
+        if (parsedDate) {
           if (!datesBySource[source]) {
             datesBySource[source] = {};
           }
@@ -85,18 +107,40 @@ async function processHealthData(healthDataArray, userId, actingUserId) {
     try {
       // Use 'date', 'entry_date', or 'timestamp' to determine the date of the entry
       const dateToParse = date || dataEntry.entry_date || timestamp;
-      const dateObj = new Date(dateToParse);
-      if (isNaN(dateObj.getTime())) {
-        throw new Error(`Invalid date received from shortcut: '${dateToParse}'.`);
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      
+      // If dateToParse is already in YYYY-MM-DD format, use it directly
+      if (dateRegex.test(dateToParse)) {
+        parsedDate = dateToParse;
+        log('debug', `[processHealthData] Using explicit date field: ${parsedDate}`);
+      } else {
+        // Check if timestamp has timezone info
+        const hasTimezone = /Z|[+-]\d{2}:\d{2}|[+-]\d{4}$/.test(dateToParse);
+        
+        if (!hasTimezone && dateToParse.includes('T')) {
+          parsedDate = dateToParse.split('T')[0];
+          log('debug', `[processHealthData] Extracted date from local timestamp: ${parsedDate}`);
+        } else {
+          // Has timezone or is a date string
+          const dateObj = new Date(dateToParse);
+          if (isNaN(dateObj.getTime())) {
+            throw new Error(`Invalid date received: '${dateToParse}'.`);
+          }
+          // Use local date components instead of toISOString() which uses UTC
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          parsedDate = `${year}-${month}-${day}`;
+          log('debug', `[processHealthData] Converted to local date: ${parsedDate}`);
+        }
       }
-      parsedDate = dateObj.toISOString().split('T')[0];
 
       // If timestamp is not provided, default to the beginning of the day from the 'date' field.
       if (timestamp) {
         const timestampObj = new Date(timestamp);
         if (isNaN(timestampObj.getTime())) {
           log('warn', `Invalid timestamp received for entry: ${JSON.stringify(dataEntry)}. Defaulting to start of day from parsed date.`);
-          entryTimestamp = dateObj.toISOString(); // Use start of day from parsed 'date'
+          entryTimestamp = new Date(parsedDate).toISOString();
           entryHour = 0; // Default to hour 0
         } else {
           entryTimestamp = timestampObj.toISOString();
@@ -104,7 +148,7 @@ async function processHealthData(healthDataArray, userId, actingUserId) {
         }
       } else {
         // If no timestamp is provided, use the start of the day from the 'date' field.
-        entryTimestamp = dateObj.toISOString();
+        entryTimestamp = new Date(parsedDate).toISOString();
         entryHour = 0; // Default to hour 0
       }
     } catch (e) {
@@ -330,11 +374,12 @@ async function processMobileHealthData(mobileHealthDataArray, userId, actingUser
   const errors = [];
 
   for (const dataEntry of mobileHealthDataArray) {
-    const { type, source, timestamp, value, bedtime, wake_time, duration_in_seconds, time_asleep_in_seconds, sleep_score, stage_events, activityType, caloriesBurned, distance, duration, raw_data } = dataEntry;
-    log('debug', `[processMobileHealthData] Processing dataEntry with type: ${type}`);
+    const { type, source, timestamp, date, entry_date, value, bedtime, wake_time, duration_in_seconds, time_asleep_in_seconds, sleep_score, stage_events, activityType, caloriesBurned, distance, duration, raw_data } = dataEntry;
+    log('debug', `[processMobileHealthData] Processing dataEntry with type: ${type}, date: ${date}, timestamp: ${timestamp}`);
 
-    if (!type || !source || !timestamp) {
-      errors.push({ error: "Missing required fields: type, source, or timestamp in one of the entries", entry: dataEntry });
+    // Require either timestamp or date
+    if (!type || !source || (!timestamp && !date && !entry_date)) {
+      errors.push({ error: "Missing required fields: type, source, or timestamp/date in one of the entries", entry: dataEntry });
       continue;
     }
 
@@ -343,13 +388,52 @@ async function processMobileHealthData(mobileHealthDataArray, userId, actingUser
     let entryHour = null;
 
     try {
-      const dateObj = new Date(timestamp);
-      if (isNaN(dateObj.getTime())) {
-        throw new Error(`Invalid timestamp received: '${timestamp}'.`);
+      const explicitDate = date || entry_date;
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      
+      if (explicitDate && dateRegex.test(explicitDate)) {
+        // Use the date directly
+        parsedDate = explicitDate;
+        log('debug', `[processMobileHealthData] Using explicit date field: ${parsedDate}`);
+        
+        // Still parse timestamp for hour extraction if available
+        if (timestamp) {
+          const dateObj = new Date(timestamp);
+          if (!isNaN(dateObj.getTime())) {
+            entryTimestamp = dateObj.toISOString();
+            entryHour = dateObj.getHours();
+          }
+        }
+      } else if (timestamp) {
+        // Fallback: parse from timestamp
+        // Check if timestamp has timezone info
+        const hasTimezone = /Z|[+-]\d{2}:\d{2}|[+-]\d{4}$/.test(timestamp);
+        
+        if (!hasTimezone && timestamp.includes('T')) {
+          // No timezone - extract date directly to avoid UTC conversion
+          parsedDate = timestamp.split('T')[0];
+          log('debug', `[processMobileHealthData] Extracted date from local timestamp: ${parsedDate}`);
+        } else {
+          const dateObj = new Date(timestamp);
+          if (isNaN(dateObj.getTime())) {
+            throw new Error(`Invalid timestamp received: '${timestamp}'.`);
+          }
+          // Use local date components instead of toISOString() which uses UTC
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          parsedDate = `${year}-${month}-${day}`;
+          log('debug', `[processMobileHealthData] Converted UTC timestamp to local date: ${parsedDate}`);
+        }
+        
+        const dateObj = new Date(timestamp);
+        if (!isNaN(dateObj.getTime())) {
+          entryTimestamp = dateObj.toISOString();
+          entryHour = dateObj.getHours();
+        }
+      } else {
+        throw new Error(`No valid date or timestamp provided.`);
       }
-      parsedDate = dateObj.toISOString().split('T')[0];
-      entryTimestamp = dateObj.toISOString();
-      entryHour = dateObj.getHours();
     } catch (e) {
       log('error', "Timestamp parsing error:", e);
       errors.push({ error: `Invalid timestamp format for entry: ${JSON.stringify(dataEntry)}. Error: ${e.message}`, entry: dataEntry });
