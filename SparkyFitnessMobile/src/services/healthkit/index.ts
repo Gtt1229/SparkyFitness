@@ -13,6 +13,7 @@ import {
   PermissionRequest,
 } from '../../types/healthRecords';
 import { SyncDuration } from './preferences';
+import { getLocalDateString } from '../../utils/dateUtils';
 
 // Track if HealthKit is available on this device
 let isHealthKitAvailable = false;
@@ -355,7 +356,7 @@ const getAggregatedDataByDate = async (
 
       if (stats && stats.sumQuantity && stats.sumQuantity.quantity > 0) {
         daysWithData++;
-        const dateStr = dayStart.toISOString().split('T')[0];
+        const dateStr = getLocalDateString(dayStart.toISOString());
         results.push({
           date: dateStr,
           value: Math.round(stats.sumQuantity.quantity),
@@ -433,7 +434,7 @@ export const getAggregatedTotalCaloriesByDate = async (
 
       if (basal > 0 || active > 0) {
         daysWithData++;
-        const dateStr = dayStart.toISOString().split('T')[0];
+        const dateStr = getLocalDateString(dayStart.toISOString());
         const total = Math.round(basal + active);
         results.push({
           date: dateStr,

@@ -7,6 +7,7 @@ import {
   SumAccumulator,
   AggregatedHealthRecord,
 } from '../../types/healthRecords';
+import { getLocalDateString } from '../../utils/dateUtils';
 
 export const aggregateHeartRateByDate = (records: HCHeartRateRecord[]): AggregatedHealthRecord[] => {
   if (!Array.isArray(records)) {
@@ -25,7 +26,7 @@ export const aggregateHeartRateByDate = (records: HCHeartRateRecord[]): Aggregat
 
   const aggregatedData = validRecords.reduce<HeartRateAccumulator>((acc, record) => {
     try {
-      const date = record.startTime.split('T')[0];
+      const date = getLocalDateString(record.startTime);
       const heartRate = record.samples.reduce((sum, sample) =>
         sum + (sample.beatsPerMinute || 0), 0) / record.samples.length;
 
@@ -70,7 +71,7 @@ export const aggregateStepsByDate = (records: HCStepsRecord[]): AggregatedHealth
       // Use endTime for steps to avoid previous day assignment
       // If endTime doesn't exist, fall back to startTime
       const timeToUse = record.endTime || record.startTime;
-      const date = timeToUse.split('T')[0];
+      const date = getLocalDateString(timeToUse);
       const steps = record.count;
 
       if (!acc[date]) {
@@ -113,7 +114,7 @@ export const aggregateTotalCaloriesByDate = (records: HCEnergyRecord[]): Aggrega
       // Use endTime for total calories to avoid previous day assignment (consistent with Steps)
       // If endTime doesn't exist, fall back to startTime
       const timeToUse = record.endTime || record.startTime;
-      const date = timeToUse.split('T')[0];
+      const date = getLocalDateString(timeToUse);
 
       let valInKcal = 0;
 
@@ -169,7 +170,7 @@ export const aggregateActiveCaloriesByDate = (records: HCEnergyRecord[]): Aggreg
 
   const aggregatedData = validRecords.reduce<SumAccumulator>((acc, record) => {
     try {
-      const date = record.startTime.split('T')[0];
+      const date = getLocalDateString(record.startTime);
 
       // Health Connect can return values in 'calories' (large number) or 'kilocalories' (small number).
       // We need to normalize to kilocalories.

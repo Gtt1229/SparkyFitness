@@ -20,6 +20,7 @@ import {
   HealthMetricStates,
 } from '../../types/healthRecords';
 import { SyncDuration } from './preferences';
+import { getLocalDateString } from '../../utils/dateUtils';
 
 export const initHealthConnect = async (): Promise<boolean> => {
   try {
@@ -118,7 +119,7 @@ export const getAggregatedStepsByDate = async (
     const aggregatedData = records.reduce<Record<string, number>>((acc, record) => {
       try {
         const timeToUse = record.endTime || record.startTime;
-        const date = timeToUse.split('T')[0];
+        const date = getLocalDateString(timeToUse);
         const steps = record.count || 0;
 
         if (!acc[date]) {
@@ -180,7 +181,7 @@ export const getAggregatedActiveCaloriesByDate = async (
     const aggregatedData = records.reduce<Record<string, number>>((acc, record) => {
       try {
         const timeToUse = record.endTime || record.startTime;
-        const date = timeToUse.split('T')[0];
+        const date = getLocalDateString(timeToUse);
         const calories = record.energy?.inKilocalories || 0;
 
         if (!acc[date]) {
