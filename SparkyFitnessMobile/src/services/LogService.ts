@@ -42,11 +42,6 @@ export const addLog = async (
   details: string[] = []
 ): Promise<void> => {
   try {
-    const currentLogLevel = await getLogLevel();
-    if (LOG_LEVELS[level] > LOG_LEVELS[currentLogLevel]) {
-      return; // Don't log if current level is lower than message level
-    }
-
     // console.log(`[LogService] Attempting to add log: [${level.toUpperCase()}] ${message}`);
     const existingLogs = await AsyncStorage.getItem(LOG_KEY);
     const logs: LogEntry[] = existingLogs ? (JSON.parse(existingLogs) as LogEntry[]) : [];
