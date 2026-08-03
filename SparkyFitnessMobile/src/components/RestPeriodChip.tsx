@@ -37,7 +37,7 @@ function RestPeriodChip({ value, onPress, readOnly = false }: RestPeriodChipProp
     return (
       <View className="flex-row items-center" accessibilityLabel={`Rest ${label}`}>
         <Icon name="timer" size={14} color={textMuted} />
-        <Text className="text-sm text-text-secondary ml-1">{label}</Text>
+        <Text className="text-sm text-text-secondary ml-1">Rest {label}</Text>
       </View>
     );
   }

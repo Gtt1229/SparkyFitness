@@ -433,11 +433,11 @@ const WorkoutDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             distanceUnit={distanceUnit}
             getImageSource={getImageSource}
             excludePresetEntryId={session.id}
-            showRestChip={canEdit}
             onPressThumb={handleViewExercise}
             onToggleExpanded={toggleSection}
             onPressMetricHeader={handlePressMetricHeader}
             onLongPressSet={handleLongPressSet}
+            showRestChip
           />
         );
         return (
