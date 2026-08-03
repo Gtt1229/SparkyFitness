@@ -64,6 +64,7 @@ import WorkoutSettingsScreen from './src/screens/WorkoutSettingsScreen';
 import ServerSettingsScreen from './src/screens/ServerSettingsScreen';
 import PasskeySettingsScreen from './src/screens/PasskeySettingsScreen';
 import AppSettingsScreen from './src/screens/AppSettingsScreen';
+import NotificationSettingsScreen from './src/screens/NotificationSettingsScreen';
 import AboutScreen from './src/screens/AboutScreen';
 import WhatsNewScreen from './src/screens/WhatsNewScreen';
 import MeasurementsAddScreen from './src/screens/MeasurementsAddScreen';
@@ -236,6 +237,7 @@ const SafeWorkoutSettings = withErrorBoundary(WorkoutSettingsScreen, 'WorkoutSet
 const SafeServerSettings = withErrorBoundary(ServerSettingsScreen, 'ServerSettings', { canGoBack: true });
 const SafePasskeySettings = withErrorBoundary(PasskeySettingsScreen, 'PasskeySettings', { canGoBack: true });
 const SafeAppSettings = withErrorBoundary(AppSettingsScreen, 'AppSettings', { canGoBack: true });
+const SafeNotificationSettings = withErrorBoundary(NotificationSettingsScreen, 'NotificationSettings', { canGoBack: true });
 const SafeAbout = withErrorBoundary(AboutScreen, 'About', { canGoBack: true });
 const SafeWhatsNew = withErrorBoundary(WhatsNewScreen, 'WhatsNew', { canGoBack: true });
 const SafeDailyNutritionDetails = withErrorBoundary(DailyNutritionDetailsScreen, 'DailyNutritionDetails', { canGoBack: true });
@@ -293,7 +295,7 @@ function AppContent() {
   const cycleSheetLabel = cycleDiscreet
     ? 'Wellness'
     : cycleMode === 'pregnant' || cycleMode === 'postpartum'
-      ? 'Log Pregnancy'
+      ? 'Log Pregnancy Entry'
       : 'Log Cycle';
   const rememberActiveTab = useCallback((routeName: string) => {
     if ((NON_ADD_TABS as readonly string[]).includes(routeName)) {
@@ -1191,6 +1193,11 @@ function AppContent() {
             options={createStackScreenOptions('App Settings', { headerBackTitle: 'Settings' })}
           />
           <Stack.Screen
+            name="NotificationSettings"
+            component={SafeNotificationSettings}
+            options={createStackScreenOptions('Notifications', { headerBackTitle: 'App Settings' })}
+          />
+          <Stack.Screen
             name="About"
             component={SafeAbout}
             options={createStackScreenOptions('About', { headerBackTitle: 'Settings' })}
@@ -1203,7 +1210,7 @@ function AppContent() {
           <Stack.Screen
             name="CycleSettings"
             component={SafeCycleSettings}
-            options={createStackScreenOptions('Cycle Settings', { headerBackTitle: 'Settings' })}
+            options={createStackScreenOptions('Cycle & Pregnancy', { headerBackTitle: 'Settings' })}
           />
           <Stack.Screen
             name="CycleOnboarding"
